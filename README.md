@@ -37,37 +37,6 @@ The model is trained to identify the following respiratory conditions:
 4.  **ILD** (Interstitial Lung Disease)
 5.  **Infection**
 
----
-
-##  Installation & Usage
-
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/your-username/clinical-audio-xai.git
-    cd minor
-    ```
-
-2.  **Install dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3.  **Environment Setup**:
-    To use the LLM explanation feature, you need a [Cohere API Key](https://dashboard.cohere.com/api-keys).
-    ```bash
-    # Windows (PowerShell)
-    $env:COHERE_API_KEY = "your_api_key_here"
-
-    # Linux/macOS
-    export COHERE_API_KEY="your_api_key_here"
-    ```
-
-4.  **Run the Dashboard**:
-    ```bash
-    streamlit run app.py
-    ```
-
----
 
 ##  Model Workflow
 
