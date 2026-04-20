@@ -9,10 +9,12 @@ class TemporalAttention(nn.Module):
             nn.Tanh(),
             nn.Linear(128, 1)
         )
+        self.last_weights = None
 
     def forward(self, x):
         x = x.permute(0, 2, 1)
         w = torch.softmax(self.attn(x), dim=1)
+        self.last_weights = w.detach()
         return (w * x).sum(dim=1)
 
 

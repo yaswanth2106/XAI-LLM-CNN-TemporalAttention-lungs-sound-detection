@@ -4,4 +4,4 @@ numpy
 librosa
 matplotlib
 scikit-learn
-cohere
+soundfile

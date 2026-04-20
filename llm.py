@@ -1,9 +1,10 @@
+
 import json
 import cohere
 import os
 
 
-co = cohere.Client(api_key="agNom6U3QAMfQKZ1iB1l6xkXpRhpKmtdJWscBZZa")
+co = cohere.Client(api_key="u5NOoDJh34KkrA2FMy7iOHPpAM6bNpHZXxIaTo2c")
 
 
 def generate_clinical_explanation(explanation_json):
@@ -33,3 +34,4 @@ Produce:
     )
 
     return response.text
+
