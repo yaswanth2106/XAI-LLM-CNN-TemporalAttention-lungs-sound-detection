@@ -4,6 +4,8 @@ import numpy as np
 import soundfile as sf
 import matplotlib.pyplot as plt
 import json
+import pickle
+import os
 
 from model import CNN1DAttention
 from utils import audio_to_mfcc, N_MFCC
@@ -18,11 +20,18 @@ from rule_engine import generate_clinical_explanation
 
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-CLASS_NAMES = ['Asthma', 'COPD', 'Healthy', 'ILD', 'Infection']
+MODEL_DIR = "./new"
+
+_le_path = os.path.join(MODEL_DIR, "label_encoder.pkl")
+if os.path.exists(_le_path):
+    with open(_le_path, "rb") as f:
+        _le = pickle.load(f)
+    CLASS_NAMES = list(_le.classes_)
+else:
+    CLASS_NAMES = ['Asthma', 'COPD', 'Healthy', 'ILD', 'Infection']
 
 
 def _agreement_label(score):
-    """Label for attention-CAM agreement score (for chart title)."""
     if score >= 0.8:
         return "Strong"
     if score >= 0.1:
@@ -32,11 +41,10 @@ def _agreement_label(score):
 
 @st.cache_resource
 def load_ensemble():
-    """Load all fold models as an ensemble."""
     return EnsemblePredictor(
         in_channels=N_MFCC,
         n_classes=len(CLASS_NAMES),
-        fold_dir=".",
+        fold_dir=MODEL_DIR,
         device=DEVICE
     )
 
@@ -55,11 +63,9 @@ uploaded = st.file_uploader("Upload lung sound (.wav)", type=["wav"])
 
 if uploaded:
 
-    # ── Audio Playback ────────────────────────────────────────────────
     st.subheader("🎧 Lung Sound Playback")
     st.audio(uploaded, format="audio/wav")
 
-    # ── Read Audio & Assess Quality ───────────────────────────────────
     audio_data, sr = sf.read(uploaded)
     if audio_data.ndim > 1:
         audio_data = audio_data.mean(axis=1)
@@ -72,7 +78,6 @@ if uploaded:
 
     audio_quality = assess_audio_quality(audio_data, sr)
 
-    # Quality indicators
     q1, q2, q3, q4 = st.columns(4)
     with q1:
         st.metric("SNR", f"{audio_quality['snr_db']:.1f} dB")
@@ -92,31 +97,23 @@ if uploaded:
             quality_emoji.get(audio_quality['overall_quality'], "Unknown")
         )
 
-    # ── Feature Extraction ────────────────────────────────────────────
     uploaded.seek(0)
     mfcc = audio_to_mfcc(uploaded)
     x = torch.tensor(mfcc).unsqueeze(0).float().to(DEVICE)
-
-    # ── Ensemble Prediction ───────────────────────────────────────────
     ensemble_result = ensemble.predict(x)
     mean_probs = ensemble_result["mean_probs"]
     pred_info = prediction_metrics(mean_probs, CLASS_NAMES)
     pred = pred_info["predicted_idx"]
 
-    # ── Grad-CAM (on primary model) ───────────────────────────────────
     primary_model = ensemble.get_primary_model()
     gradcam = GradCAM1D(primary_model, primary_model.conv3)
     cam = gradcam.generate(x, pred)
     gradcam.remove()
 
-    # ── Attention Weights (from the GradCAM forward pass) ─────────────
     attn_weights = primary_model.attn.last_weights
     attn_agree = attention_cam_agreement(attn_weights, cam)
 
-    # ── CAM Statistics ────────────────────────────────────────────────
     cam_stats = cam_statistics(cam, total_duration_sec=duration_sec)
-
-    # ── Differential Grad-CAM (if top-2 gap is narrow) ────────────────
     differential_info = None
     diff_cam = None
     if pred_info["top2_gap"] < 0.3:
@@ -146,11 +143,7 @@ if uploaded:
                     for s, e, sc in diff_regions
                 ]
             }
-
-    # ── Ensemble Info ─────────────────────────────────────────────────
     fold_info = ensemble.format_fold_info(ensemble_result, CLASS_NAMES)
-
-    # ── Build Enriched Explanation ────────────────────────────────────
     explanation = build_explanation(
         patient_id="uploaded_sample",
         prediction_info=pred_info,
@@ -163,11 +156,7 @@ if uploaded:
         n_files=1,
         total_duration_sec=duration_sec
     )
-
-    # ══════════════════════════════════════════════════════════════════
-    # DISPLAY RESULTS
-    # ══════════════════════════════════════════════════════════════════
-
+    
     st.divider()
     st.subheader("🔍 Prediction")
 
@@ -182,7 +171,6 @@ if uploaded:
         )
         st.metric("Ensemble Agreement", consensus_text)
 
-    # ── Probability Distribution Chart ────────────────────────────────
     st.subheader("📊 Class Probabilities")
     prob_data = pred_info["full_distribution"]
 
@@ -207,7 +195,6 @@ if uploaded:
     plt.tight_layout()
     st.pyplot(fig_prob)
 
-    # ── Grad-CAM Spectrogram Overlay ──────────────────────────────────
     st.subheader("🔬 Grad-CAM Spectrogram Overlay")
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.imshow(mfcc, aspect="auto", origin="lower", cmap="gray")
@@ -232,11 +219,9 @@ if uploaded:
     )
     st.pyplot(fig)
 
-    # ── Attention vs Grad-CAM Comparison ──────────────────────────────
     st.subheader("🧠 Attention vs Grad-CAM Comparison")
     fig_cmp, ax_cmp = plt.subplots(figsize=(10, 3))
 
-    # Normalize attention for plotting
     attn_np = attn_weights.squeeze().cpu().numpy()
     if attn_np.ndim > 1:
         attn_np = attn_np.squeeze()
@@ -273,7 +258,6 @@ if uploaded:
     plt.tight_layout()
     st.pyplot(fig_cmp)
 
-    # ── Differential Grad-CAM (if applicable) ─────────────────────────
     if differential_info and diff_cam is not None:
         st.subheader("⚖️ Differential Grad-CAM")
         st.caption(
@@ -299,15 +283,11 @@ if uploaded:
         plt.tight_layout()
         st.pyplot(fig_diff)
 
-    # ── Clinical Explanation (Rule-Based) ─────────────────────────────
     st.divider()
     st.subheader("📋 Clinical Explanation (Rule-Based)")
     clinical_text = generate_clinical_explanation(explanation)
     st.markdown(clinical_text)
-
-    # ── Raw XAI JSON (collapsible) ────────────────────────────────────
     with st.expander("🔧 Raw XAI JSON (for debugging / audit trail)"):
-        # Strip non-serializable tensors for display
         display_json = {}
         for k, v in explanation.items():
             if isinstance(v, torch.Tensor):

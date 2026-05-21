@@ -1,14 +1,3 @@
-"""
-Multi-Fold Ensemble Predictor
-
-Uses all 5 fold checkpoints for:
-  1. More accurate predictions (averaged probabilities)
-  2. Free uncertainty quantification (inter-fold disagreement)
-  3. Consensus reporting ("4/5 models agree on COPD")
-
-Total overhead: ~5× inference time (~250ms on CPU for a 941KB model),
-which is still orders of magnitude faster than any LLM API call.
-"""
 
 import torch
 import os
@@ -18,17 +7,9 @@ from model import CNN1DAttention
 
 
 class EnsemblePredictor:
-    """Multi-fold ensemble for robust prediction and uncertainty estimation."""
+    
 
-    def __init__(self, in_channels, n_classes, fold_dir=".", device="cpu"):
-        """Load all fold checkpoints from a directory.
-
-        Args:
-            in_channels: number of MFCC coefficients (e.g. 40)
-            n_classes: number of output classes (e.g. 5)
-            fold_dir: directory containing best_model_fold*.pth files
-            device: 'cpu' or 'cuda'
-        """
+    def __init__(self, in_channels, n_classes, fold_dir="./new", device="cpu"):
         self.device = device
         self.n_classes = n_classes
         self.models = []
@@ -43,7 +24,6 @@ class EnsemblePredictor:
             )
 
         for path in fold_paths:
-            # Skip empty / corrupted checkpoint files
             if os.path.getsize(path) == 0:
                 continue
             try:
@@ -64,16 +44,7 @@ class EnsemblePredictor:
         self.n_folds = len(self.models)
 
     def predict(self, x):
-        """Run ensemble prediction across all folds.
 
-        Args:
-            x: input tensor [1, channels, time]
-
-        Returns:
-            dict with ensemble prediction results including
-            mean/std probabilities, per-fold predictions,
-            agreement count, and attention weights
-        """
         all_probs = []
         all_attention_weights = []
 
@@ -83,26 +54,20 @@ class EnsemblePredictor:
                 probs = torch.softmax(logits, dim=1)
                 all_probs.append(probs)
 
-                # Collect attention weights
                 if (hasattr(model.attn, 'last_weights')
                         and model.attn.last_weights is not None):
                     all_attention_weights.append(model.attn.last_weights)
 
-        # Stack: [n_folds, 1, n_classes]
         stacked = torch.stack(all_probs)
-        mean_probs = stacked.mean(dim=0)    # [1, n_classes]
-        std_probs = stacked.std(dim=0)      # [1, n_classes]
+        mean_probs = stacked.mean(dim=0)   
+        std_probs = stacked.std(dim=0)      
 
-        # Ensemble prediction (argmax of averaged probabilities)
         ensemble_pred = mean_probs.argmax(dim=1).item()
 
-        # Per-fold predictions
         fold_preds = [p.argmax(dim=1).item() for p in all_probs]
 
-        # Agreement: how many folds match the ensemble prediction
         agreement_count = sum(1 for p in fold_preds if p == ensemble_pred)
 
-        # Mean attention weights across folds
         mean_attention = None
         if all_attention_weights:
             mean_attention = torch.stack(all_attention_weights).mean(dim=0)
@@ -121,19 +86,9 @@ class EnsemblePredictor:
         }
 
     def get_primary_model(self):
-        """Return the first fold model for Grad-CAM analysis."""
         return self.models[0]
 
     def format_fold_info(self, result, class_names):
-        """Format ensemble results for the explanation JSON.
-
-        Args:
-            result: dict from predict()
-            class_names: list of class name strings
-
-        Returns:
-            dict suitable for inclusion in the explanation JSON
-        """
         fold_preds_named = [class_names[p] for p in result["fold_preds"]]
         pred_counts = dict(Counter(fold_preds_named))
 

@@ -3,3 +3,12 @@ best_model_fold2.pth
 best_model_fold3.pth
 best_model_fold4.pth
 __pycache__
+best_model_fold0.pth
+graphs/
+new/
+paper/
+BSPC_paper_draft.md.resolved
+faithfulness_curves.py
+kaggle_unified_evaluation_cell.py
+notebooka96650ee13 (1).ipynb
+xai_full_evaluation.py

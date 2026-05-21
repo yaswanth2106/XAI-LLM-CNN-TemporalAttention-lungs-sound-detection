@@ -1,6 +1,6 @@
 #  Clinical Audio AI & Explainability (XAI) Dashboard
 
-This repository contains a deep learning pipeline for the classification and interpretation of clinical audio signals (e.g., respiratory or cardiac sounds). It leverages **1D-CNNs**, **Temporal Attention**, and **Explainable AI (XAI)** to provide not just predictions, but actionable insights for clinicians.
+This repository contains a deep learning pipeline for the classification and interpretation of clinical audio signals. It leverages **1D-CNNs**, **Temporal Attention**, and **Explainable AI (XAI)** to provide not just predictions, but actionable insights for clinicians.
 
 ---
 
@@ -14,19 +14,6 @@ This repository contains a deep learning pipeline for the classification and int
 
 ---
 
-## Project Structure
-
-| File | Description |
-| :--- | :--- |
-| `app.py` | Streamlit dashboard for interactive audio analysis and visualization. |
-| `model.py` | Defines the `CNN1DAttention` and `TemporalAttention` architecture. |
-| `xai.py` | Contains `GradCAM1D` class and utilities for mapping importance to time ranges. |
-| `llm.py` | Logic for generating clinical explanations using the Cohere API. |
-| `utils.py` | Audio processing utilities (loading, padding, MFCC conversion). |
-| `requirements.txt` | Project dependencies. |
-| `best_model_foldX.pth` | Pre-trained model checkpoints. |
-
----
 
 ## Supported Conditions
 
@@ -57,14 +44,4 @@ The detected "interest regions" are formatted into JSON and processed by the Coh
 
 ---
 
----
-
-##  Disclaimer
-
-**This software is for research purposes only.** It is not a certified medical device and should not be used for primary diagnosis. All model outputs must be verified by a qualified medical professional.
-
----
-
-##  Contributing
-Contributions are welcome! Please feel free to submit a Pull Request.
 

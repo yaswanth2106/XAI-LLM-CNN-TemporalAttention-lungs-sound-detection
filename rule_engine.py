@@ -1,20 +1,4 @@
-"""
-Rule-Based Clinical Explanation Engine
 
-Generates deterministic, auditable clinical explanations from
-enriched XAI metrics. Replaces the LLM entirely.
-
-Properties:
-  - Zero cloud dependencies
-  - Sub-millisecond latency
-  - 100% deterministic (same input → same output, always)
-  - Fully auditable and unit-testable
-  - Edge-device ready
-"""
-
-
-# ── Condition Knowledge Base ──────────────────────────────────────────────
-# Curated by domain context — every string is intentional and traceable.
 
 CONDITION_CONTEXT = {
     "Asthma": {
@@ -124,7 +108,6 @@ CONDITION_CONTEXT = {
 }
 
 
-# ── Confidence Descriptions ──────────────────────────────────────────────
 
 CONFIDENCE_DESCRIPTIONS = {
     "high": (
@@ -144,10 +127,9 @@ CONFIDENCE_DESCRIPTIONS = {
 }
 
 
-# ── Helper Functions ─────────────────────────────────────────────────────
+
 
 def describe_severity(score):
-    """Map Grad-CAM severity score to a clinical descriptor."""
     if score >= 0.85:
         return "high-intensity"
     elif score >= 0.60:
@@ -159,7 +141,6 @@ def describe_severity(score):
 
 
 def describe_agreement(score):
-    """Describe the attention–CAM agreement level."""
     if score >= 0.8:
         return "strong"
     elif score >= 0.5:
@@ -168,21 +149,8 @@ def describe_agreement(score):
         return "weak"
 
 
-# ── Core Explanation Generator ────────────────────────────────────────────
 
 def generate_clinical_explanation(explanation_json):
-    """Generate a deterministic clinical explanation from enriched XAI JSON.
-
-    This function replaces the LLM entirely. Every output is
-    reproducible, auditable, and runs in <1ms with zero cloud
-    dependencies.
-
-    Args:
-        explanation_json: dict from xai.build_explanation()
-
-    Returns:
-        str: formatted clinical report in markdown
-    """
     cls = explanation_json["predicted_class"]
     prob = explanation_json["probability"]
     tier = explanation_json["confidence_tier"]
@@ -196,7 +164,6 @@ def generate_clinical_explanation(explanation_json):
     ctx = CONDITION_CONTEXT.get(cls, CONDITION_CONTEXT["Healthy"])
     sections = []
 
-    # ── 1. Audio Quality Warning (if needed) ─────────────────────────
     if audio_q.get("overall_quality") == "poor":
         quality_warnings = []
         for issue in audio_q.get("issues", []):
@@ -237,7 +204,6 @@ def generate_clinical_explanation(explanation_json):
             "Results may be marginally affected.*"
         )
 
-    # ── 2. Summary ───────────────────────────────────────────────────
     confidence_desc = CONFIDENCE_DESCRIPTIONS.get(
         tier, CONFIDENCE_DESCRIPTIONS["low"]
     )
@@ -248,7 +214,7 @@ def generate_clinical_explanation(explanation_json):
     summary += "\n\n"
     summary += f"{confidence_desc} ({prob:.1%} probability)."
 
-    # Entropy context
+
     entropy = explanation_json.get("prediction_entropy", 0)
     if entropy > 0.7:
         summary += (
@@ -264,7 +230,6 @@ def generate_clinical_explanation(explanation_json):
 
     sections.append(summary)
 
-    # ── 3. Ensemble Consensus (if available) ─────────────────────────
     if ensemble:
         ensemble_section = "### Ensemble Consensus\n\n"
         agreement = ensemble["agreement_count"]
@@ -272,7 +237,7 @@ def generate_clinical_explanation(explanation_json):
 
         if ensemble.get("consensus"):
             ensemble_section += (
-                f"✅ **Strong consensus:** {agreement} out of "
+                f" **Strong consensus:** {agreement} out of "
                 f"{total} models agree on **{cls}** "
                 f"(ensemble std: ±{ensemble['ensemble_std']:.3f})."
             )
@@ -287,7 +252,7 @@ def generate_clinical_explanation(explanation_json):
                 )
             ]
             ensemble_section += (
-                f"⚠️ **Model disagreement detected:** Only "
+                f" **Model disagreement detected:** Only "
                 f"{agreement}/{total} folds agree.\n\n"
                 f"Fold predictions: "
                 f"{', '.join(disagreements)}.\n\n"
@@ -296,7 +261,7 @@ def generate_clinical_explanation(explanation_json):
             )
         sections.append(ensemble_section)
 
-    # ── 4. Key Findings ──────────────────────────────────────────────
+
     findings_section = "### Key Findings\n\n"
 
     if regions:
@@ -315,7 +280,6 @@ def generate_clinical_explanation(explanation_json):
             "above threshold.\n"
         )
 
-    # CAM pattern description
     spread = cam_stats.get("spread_label", "unknown")
     coverage = cam_stats.get("coverage_ratio", 0)
     n_regions = cam_stats.get("n_active_regions", 0)
@@ -348,7 +312,7 @@ def generate_clinical_explanation(explanation_json):
             f"{coverage:.0%} of the signal."
         )
 
-    # Attention–CAM agreement
+
     agreement_label = describe_agreement(attn_agreement)
     findings_section += (
         f"\n\n**Model consistency:** {agreement_label} agreement "
@@ -369,7 +333,7 @@ def generate_clinical_explanation(explanation_json):
 
     sections.append(findings_section)
 
-    # ── 5. Differential Diagnosis (if applicable) ────────────────────
+
     top2_gap = explanation_json.get("top2_gap", 1.0)
     second_class = explanation_json.get("second_class", "")
     second_prob = explanation_json.get("second_probability", 0)
@@ -403,12 +367,12 @@ def generate_clinical_explanation(explanation_json):
         )
         sections.append(diff_section)
 
-    # ── 6. Suggested Next Steps ──────────────────────────────────────
+
     steps_section = "### Suggested Next Steps\n\n"
     for step in ctx["next_steps"]:
         steps_section += f"- {step}\n"
 
-    # Context-dependent extra steps
+
     if tier in ("low", "very_low"):
         steps_section += (
             "- **Repeat recording** with improved placement "
@@ -422,7 +386,7 @@ def generate_clinical_explanation(explanation_json):
 
     sections.append(steps_section)
 
-    # ── 7. Probability Distribution Table ────────────────────────────
+
     dist = explanation_json.get("full_distribution", {})
     if dist:
         dist_section = "### Full Probability Distribution\n\n"
@@ -435,7 +399,7 @@ def generate_clinical_explanation(explanation_json):
             dist_section += f"| {name} | {p:.1%}{marker} |\n"
         sections.append(dist_section)
 
-    # ── 8. Disclaimer (always identical — auditable) ─────────────────
+
     disclaimer = (
         "---\n\n"
         "*⚠️ **Disclaimer:** This is an AI-assisted screening "
